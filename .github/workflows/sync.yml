@@ -1,0 +1,28 @@
+name: Sync from Netlify
+on:
+  schedule:
+    - cron: '0 */6 * * *' # 6시간마다 자동으로 Netlify 주소의 최신 상태를 가져옵니다.
+  workflow_dispatch: # 지금 바로 수동으로 실행할 수 있게 설정합니다.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitHub Pages
+        uses: actions/checkout@v4
+
+      - name: Download Netlify Deploy Content
+        run: |
+          curl -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
+               https://netlify.com{{ secrets.NETLIFY_SITE_ID }}/deploys > deploys.json
+          DEPLOY_URL=$(jq -r '..deploy_ssl_url' deploys.json)
+          wget -r -np -nH --cut-dirs=0 -P . $DEPLOY_URL
+          rm deploys.json
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Sync latest deployment from Netlify"
+          git push
