@@ -13,13 +13,21 @@ jobs:
     steps:
       - name: Checkout GitHub Pages
         uses: actions/checkout@v4
+        env:
+          # 2026년 깃허브 환경에 맞춰 체크아웃 경고 차단
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-      # Netlify API를 통해 배포본 zip 파일 주소를 따온 뒤 다이렉트로 다운로드 및 압축 해제
+      # jq 파싱 방식을 안전하게 단일 값 배열 슬라이싱([0])으로 변경하여 exit code 3 원천 차단
       - name: Direct Download and Unzip from Netlify
         run: |
           echo "Fetching latest deploy ID..."
           DEPLOY_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
             https://netlify.com{{ secrets.NETLIFY_SITE_ID }}/deploys | jq -r '.[0].id')
+          
+          if [ "$DEPLOY_ID" = "null" ] || [ -z "$DEPLOY_ID" ]; then
+            echo "Error: Could not retrieve Deploy ID. Check your Secrets."
+            exit 1
+          fi
           
           echo "Downloading deploy zip for ID: $DEPLOY_ID"
           curl -L -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
