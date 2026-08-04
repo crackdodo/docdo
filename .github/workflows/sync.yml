@@ -4,7 +4,6 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch:
 
-# 에러 해결을 위해 깃허브 쓰기 권한 직접 부여
 permissions:
   contents: write
 
@@ -12,11 +11,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # Node 24를 강제로 허용하여 체크아웃 에러 방지
       - name: Checkout GitHub Pages
         uses: actions/checkout@v4
         env:
-          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+          # 2026년 깃허브 정책에 맞춰 자바스크립트 액션을 Node 24로 강제 구동
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Download Netlify Deploy Content
         run: |
