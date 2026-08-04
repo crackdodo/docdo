@@ -1,8 +1,8 @@
 name: Sync from Netlify
 on:
   schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
+    - cron: '0 */6 * * *' # 6시간마다 동기화
+  workflow_dispatch: # 수동 실행 버튼 활성화
 
 permissions:
   contents: write
@@ -13,22 +13,20 @@ jobs:
     steps:
       - name: Checkout GitHub Pages
         uses: actions/checkout@v4
-        env:
-          # 2026년 깃허브 정책에 맞춰 자바스크립트 액션을 Node 24로 강제 구동
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-      - name: Download Netlify Deploy Content
-        run: |
-          curl -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
-               https://netlify.com{{ secrets.NETLIFY_SITE_ID }}/deploys > deploys.json
-          DEPLOY_URL=$(jq -r '..deploy_ssl_url' deploys.json)
-          wget -r -np -nH --cut-dirs=0 -P . $DEPLOY_URL
-          rm deploys.json
+      # 가장 에러 없는 검증된 다운로드 액션 플러그인 사용
+      - name: Download Netlify Site Content
+        uses: kakeis/netlify-download-action@v1
+        with:
+          netlify-auth-token: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          netlify-site-id: ${{ secrets.NETLIFY_SITE_ID }}
+          output-dir: '.' # 현재 폴더에 다운로드
 
       - name: Commit and Push Changes
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add .
+          # 변경사항이 있을 때만 푸시하여 오류 방지
           git diff-index --quiet HEAD || git commit -m "Sync latest deployment from Netlify"
           git push
