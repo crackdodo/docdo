@@ -1,15 +1,22 @@
 name: Sync from Netlify
 on:
   schedule:
-    - cron: '0 */6 * * *' # 6시간마다 자동으로 Netlify 주소의 최신 상태를 가져옵니다.
-  workflow_dispatch: # 지금 바로 수동으로 실행할 수 있게 설정합니다.
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+# 에러 해결을 위해 깃허브 쓰기 권한 직접 부여
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Node 24를 강제로 허용하여 체크아웃 에러 방지
       - name: Checkout GitHub Pages
         uses: actions/checkout@v4
+        env:
+          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
       - name: Download Netlify Deploy Content
         run: |
