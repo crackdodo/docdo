@@ -1,8 +1,8 @@
 name: Sync from Netlify
 on:
   schedule:
-    - cron: '0 */6 * * *' # 6시간마다 동기화
-  workflow_dispatch: # 수동 실행 버튼 활성화
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,19 +14,25 @@ jobs:
       - name: Checkout GitHub Pages
         uses: actions/checkout@v4
 
-      # 가장 에러 없는 검증된 다운로드 액션 플러그인 사용
-      - name: Download Netlify Site Content
-        uses: kakeis/netlify-download-action@v1
-        with:
-          netlify-auth-token: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          netlify-site-id: ${{ secrets.NETLIFY_SITE_ID }}
-          output-dir: '.' # 현재 폴더에 다운로드
+      # Netlify API를 통해 배포본 zip 파일 주소를 따온 뒤 다이렉트로 다운로드 및 압축 해제
+      - name: Direct Download and Unzip from Netlify
+        run: |
+          echo "Fetching latest deploy ID..."
+          DEPLOY_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
+            https://netlify.com{{ secrets.NETLIFY_SITE_ID }}/deploys | jq -r '.[0].id')
+          
+          echo "Downloading deploy zip for ID: $DEPLOY_ID"
+          curl -L -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
+            -o netlify_site.zip https://netlify.com{{ secrets.NETLIFY_SITE_ID }}/deploys/$DEPLOY_ID/download
+          
+          echo "Extracting files..."
+          unzip -o netlify_site.zip -d .
+          rm netlify_site.zip
 
       - name: Commit and Push Changes
         run: |
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
           git add .
-          # 변경사항이 있을 때만 푸시하여 오류 방지
           git diff-index --quiet HEAD || git commit -m "Sync latest deployment from Netlify"
           git push
