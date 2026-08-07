@@ -1,46 +1,61 @@
-name: Sync from Netlify
+name: Mirror Netlify to GitHub Pages
+
 on:
-  schedule:
-    - cron: '0 */6 * * *'
   workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout GitHub Pages
-        uses: actions/checkout@v4
-        env:
-          # 2026년 깃허브 환경에 맞춰 체크아웃 경고 차단
-          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
-      # jq 파싱 방식을 안전하게 단일 값 배열 슬라이싱([0])으로 변경하여 exit code 3 원천 차단
-      - name: Direct Download and Unzip from Netlify
+      - name: Download Netlify site
         run: |
-          echo "Fetching latest deploy ID..."
-          DEPLOY_ID=$(curl -s -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
-            https://netlify.com{{ secrets.NETLIFY_SITE_ID }}/deploys | jq -r '.[0].id')
-          
-          if [ "$DEPLOY_ID" = "null" ] || [ -z "$DEPLOY_ID" ]; then
-            echo "Error: Could not retrieve Deploy ID. Check your Secrets."
-            exit 1
+          mkdir -p public
+
+          wget \
+            --mirror \
+            --page-requisites \
+            --convert-links \
+            --adjust-extension \
+            --no-parent \
+            --directory-prefix=downloaded \
+            https://comforting-cranachan-97afd9.netlify.app/
+
+          cp -a downloaded/comforting-cranachan-97afd9.netlify.app/. public/
+          touch public/.nojekyll
+
+          if [ -f public/index.html ]; then
+            cp public/index.html public/404.html
           fi
-          
-          echo "Downloading deploy zip for ID: $DEPLOY_ID"
-          curl -L -H "Authorization: Bearer ${{ secrets.NETLIFY_AUTH_TOKEN }}" \
-            -o netlify_site.zip https://netlify.com{{ secrets.NETLIFY_SITE_ID }}/deploys/$DEPLOY_ID/download
-          
-          echo "Extracting files..."
-          unzip -o netlify_site.zip -d .
-          rm netlify_site.zip
 
-      - name: Commit and Push Changes
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add .
-          git diff-index --quiet HEAD || git commit -m "Sync latest deployment from Netlify"
-          git push
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages files
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
